@@ -17,7 +17,10 @@ Enjoy.
  * Download Google Takeout as zip file if you use umlauts. There may be encoding issues. Choose the HTML output option.
  * Extract the dump file, merge parts if you have multiple files.
  * Additional Python package requirement: [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/).
- * Extract the plugin into the ``plugins`` folder of an existing Nikola site. The plugin will create a new site in a subfolder so there won't be any contaminations with actual data. If you are unsure or don't want that you can easily initiate an empty site for the purpose: ``$ nikola init dummy_site``.
+ * Copy the extracted plugin archive into the ``plugins`` folder of an existing Nikola site.
+    * Chances are that there isn't a ``plugins`` folder yet. Create it.
+    * The plugin will create a new site in a subfolder so there won't be any contaminations with actual data.
+    * If you are unsure or don't want that you can easily initiate an empty site for the purpose: ``$ nikola init dummy_site``.
  * Open ``plugins/import_gplus.py``
     * adapt folder names to your language settings
     * adapt share status strings if neccesary (this will affect the category assigment)
