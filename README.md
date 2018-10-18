@@ -12,9 +12,9 @@ If you consider to release this into the wilderness, keep in mind that the impor
 
 Enjoy.
 
-## Usage
+## USAGE
 
- * Download Google Takeout as zip file if you use umlauts. There may be encoding issues. Choose the HTML output option.
+ * Download Google Takeout as zip file if you use umlauts or other special characters or just to be sure. There may be encoding issues. Choose the HTML output option.
  * Extract the dump file, merge parts if you have multiple files.
  * Additional Python package requirement: [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/).
  * Copy the extracted plugin archive folder into the ``plugins`` folder of an existing Nikola site.
@@ -24,15 +24,16 @@ Enjoy.
  * Open ``plugins/gplus_nikola_plugin/import_gplus_html.py``.
     * Adapt folder names to your language settings.
     * Adapt share status strings if neccesary (this will affect the category assigment).
-    * Posts that are not shared to public/"My circles"/"My extended circles"/communities/collections will be classified as other/private; if you set the ``import_private`` to *False* these posts will not be imported .
- * Run ``$ nikola import_gplus_html path/to/takeout_folder``
+    * Posts that are not shared to public/"My circles"/"My extended circles"/communities/collections will be classified as other/private; if you set the ``import_private`` variable to *False* these posts will not be imported.
+    * Community shares are not distinguished between public and closed/private communities; if you set the ``import_com`` variable to *False* community posts will not be imported.
+ * Run ``$ nikola import_gplus_html path/to/takeout_folder``.
  * The plugin inits a new Nikola site called ``new_site`` (no shit, Sherlock), you have to change into that directory to run build commands: ``$ cd new_site``.
  * Building the site can take long and possibly wake up your fans. You may want to test the output with a fraction of the available data.
  * Although the output should work with any theme, it looks quite nice with [hyde](https://themes.getnikola.com/v7/hyde/); hpstr is okay, too.
-   Install hyde: ``$ nikola theme -i hyde``
+   Install hyde: ``$ nikola theme -i hyde``.
  * Consider to copy the included ``custom.css`` into the ``themes/THEME_NAME/assets/css`` directory for an even better result.
  * Tweaking ``conf.py``:
    * set theme: ``THEME = "hyde"``
    * disable RSS: ``GENERATE_RSS = False``
- * Build the site: ``$ nikola build``
- * Watch the site on localhost:8000: ``$ nikola serve``
+ * Build the site: ``$ nikola build``.
+ * Watch the site on localhost:8000: ``$ nikola serve``.

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, print_function
-import logbook
-import logging
+
 import os
 import shutil
 
@@ -52,14 +51,18 @@ gto_events = "Veranstaltungen"
 share_public = "Geteilt mit: Öffentlich"
 share_circles = "Geteilt mit: Meine Kreise"
 share_extcircles = "Geteilt mit: Meine erweiterten Kreise"
+share_other = "Andere"
+
 share_com = "Shared to the community "
 share_coll = "Shared to the collection "
 
 # exclude posts that are none of the above which are shared with
-# specific circles or persons/profiles so probably private posts
+# certain circles or persons/profiles so probably private posts
+# (considered as "Andere"/"Other")
 import_private = True
 
-share_other = "Andere"
+# exclude posts to communites as they may be closed/private
+import_com = True
 
 # ##############################################################
 
@@ -225,13 +228,18 @@ class CommandImportGplus(Command, ImportMixin):
                     vis.startswith(share_circles) or \
                     vis.startswith(share_extcircles)):
                 cat = vis.split(",")[0] # get rid of comma if there is any
-            elif vis in (share_com, share_coll):
+            elif vis in share_com:
+                if import_com is False:
+                    LOGGER.warning("Community post will be ignored: {}".format(link))
+                    continue
+                cat = "{}\"{}\"".format(vis, vis_link)
+            elif vis in share_coll:
                 cat = "{}\"{}\"".format(vis, vis_link)
             else:
-                cat = share_other
                 if import_private is False:
                     LOGGER.warning("Private post will be ignored: {}".format(link))
                     continue
+                cat = share_other
             
             if video is not None:
                 tags.append("video")
@@ -293,6 +301,8 @@ class CommandImportGplus(Command, ImportMixin):
                 return
 
             # additional metadata
+            # the passed metadata objects are limited by the basic_import's
+            # write_metadata fuction
             more = {"link": link, # original G+ post
                     "hidetitle": True, # doesn't work for index pages
                     "category": cat,
