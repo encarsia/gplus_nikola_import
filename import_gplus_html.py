@@ -61,7 +61,7 @@ share_coll = "Shared to the collection "
 # (considered as "Andere"/"Other")
 import_private = True
 
-# exclude posts to communites as they may be closed/private
+# exclude posts to communities as they may be closed/private
 import_com = True
 
 # ##############################################################
@@ -70,7 +70,7 @@ class CommandImportGplus(Command, ImportMixin):
     """Import a Google+ dump."""
 
     name = "import_gplus"
-    needs_config = False
+    needs_config = True
     doc_usage = "[options] extracted_dump_file_folder"
     doc_purpose = "import a Google+ dump"
     cmd_options = ImportMixin.cmd_options
@@ -84,8 +84,8 @@ class CommandImportGplus(Command, ImportMixin):
             print(self.help())
             return
 
-        options["filename"] = args[0]
-        self.export_folder = options["filename"]
+        options["foldername"] = args[0]
+        self.export_folder = options["foldername"]
         self.output_folder = options["output_folder"]
         self.import_into_existing_site = False
         self.url_map = {}
@@ -99,16 +99,16 @@ class CommandImportGplus(Command, ImportMixin):
         # collect all files
         files = [f for f in os.listdir(os.path.join(post_path)) if os.path.isfile(os.path.join(post_path, f))]
 
-        # filter relevant HTML files
+        # filter HTML files
         html_files = [f for f in files if f.endswith(".html")]
         LOGGER.info("{} posts ready for import".format(len(html_files)))
         
         # init new Nikola site "new_site", edit conf.py to your needs
-        # change to this folder for the for build process
-        self.context = self.populate_context(self.export_folder, html_files, post_path)
+        # change into this folder for the for build process
+        self.context = self.populate_context(html_files, post_path)
         conf_template = self.generate_base_site()
         self.write_configuration(self.get_configuration_output_path(), conf_template.render(**prepare_config(self.context)))
-        self.import_posts(self.export_folder, html_files, post_path)
+        self.import_posts(html_files, post_path)
         
         # In the Takeout archive photos are linked to the main working
         # directory although they do not necessarily exist there (Hello
@@ -140,7 +140,7 @@ class CommandImportGplus(Command, ImportMixin):
                         LOGGER.info("Skipping {}. File already exists".format(f))
         
     @staticmethod
-    def populate_context(folder, names, path):
+    def populate_context(names, path):
         # We don't get much data here
         context = SAMPLE_CONF.copy()
         context["DEFAULT_LANG"] = "de"
@@ -180,7 +180,7 @@ class CommandImportGplus(Command, ImportMixin):
         
         return context
 
-    def import_posts(self, folder, names, path):
+    def import_posts(self, names, path):
         """Import all posts."""
         self.out_folder = "posts"
 
@@ -188,7 +188,6 @@ class CommandImportGplus(Command, ImportMixin):
             with open(os.path.join(path, name)) as f:
                 soup = bs4.BeautifulSoup(f, "html.parser")
                 
-            description = ""
             tags = []
             
             title_string = str(soup.title.string)
@@ -196,8 +195,9 @@ class CommandImportGplus(Command, ImportMixin):
             
             # post date is the 2nd link on the page
             post_date = soup.find_all("a")[1].text
+            
             # receive link from post date
-            link = soup.find_all("a")[1].get("href")
+            post_link = soup.find_all("a")[1].get("href")
             
             # collect complete post content
             post_text = soup.find("div", "main-content")
@@ -303,7 +303,7 @@ class CommandImportGplus(Command, ImportMixin):
             # additional metadata
             # the passed metadata objects are limited by the basic_import's
             # write_metadata fuction
-            more = {"link": link, # original G+ post
+            more = {"link": post_link, # original G+ post
                     "hidetitle": True, # doesn't work for index pages
                     "category": cat,
                     }
@@ -314,7 +314,7 @@ class CommandImportGplus(Command, ImportMixin):
                                 title,
                                 slug,
                                 post_date,
-                                description,
+                                "", # description always empty
                                 tags,
                                 more)
                                 
@@ -343,13 +343,17 @@ class CommandImportGplus(Command, ImportMixin):
         """
         # reduce title string to one line
         t = t.split("<br>")[0]
-        # link in title? just cut it out, ain't nobody got time for that
-        t = t.split("<a ")[0]
-        # same for user link
-        t= t.split("span class=")[0]
         # cut trailing dots
         if t.endswith("..."):
             t = t[:-3]
+        # link in title? just cut it out, ain't nobody got time for that
+        t = t.split("<a ")[0]
+        # same for user link, periods, commas, brackets...
+        t= t.split("span class=")[0]
+        t = t.split(".")[0]
+        t = t.split(",")[0]
+        t = t.split("?")[0]
+        t = t.split("(")[0]
         # cut html elements and fix quotation marks
         for tag in [("<b>", ""),
                      ("</b>", ""),
