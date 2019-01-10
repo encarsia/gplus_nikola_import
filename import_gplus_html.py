@@ -4,6 +4,9 @@ from __future__ import unicode_literals, print_function
 
 import os
 import shutil
+import sys
+import yaml
+from collections import Counter
 
 try:
     import bs4
@@ -18,53 +21,6 @@ from nikola.plugins.command.init import SAMPLE_CONF, prepare_config
 
 LOGGER = get_logger("import_gplus")
 
-# ################### CONFIGURATION ##################
-# you may have to adapt strings according to your language
-
-# Google Takeout folder structure
-
-# Takeout/
-# ├── +1/
-# ├── Google+ stream/
-# |   ├── Posts/
-# |   ├── Photos/
-# |   |   ├── Photos of posts/
-# |   |   └── Photos of polls/
-# |   ├── Activities/
-# |   ├── Collections/
-# |   └── Events/
-# └── index.html
-
-gto_root = "Takeout"
-gto_plus1 = "+1"
-gto_stream = "Stream in Google+"
-gto_posts = "Beiträge"
-gto_photos = "Fotos"
-gto_photos_posts = "Fotos von Beiträgen"
-gto_photos_polls = "Umfragefotos"
-gto_activity = "Aktivitätsprotokoll"
-gto_collections = "Sammlungen"
-gto_events = "Veranstaltungen"
-
-# Share status
-
-share_public = "Geteilt mit: Öffentlich"
-share_circles = "Geteilt mit: Meine Kreise"
-share_extcircles = "Geteilt mit: Meine erweiterten Kreise"
-share_other = "Andere"
-
-share_com = "Shared to the community "
-share_coll = "Shared to the collection "
-
-# exclude posts that are none of the above which are shared with
-# certain circles or persons/profiles so probably private posts
-# (considered as "Andere"/"Other")
-import_private = True
-
-# exclude posts to communities as they may be closed/private
-import_com = True
-
-# ##############################################################
 
 class CommandImportGplus(Command, ImportMixin):
     """Import a Google+ dump."""
@@ -73,8 +29,16 @@ class CommandImportGplus(Command, ImportMixin):
     needs_config = True
     doc_usage = "[options] extracted_dump_file_folder"
     doc_purpose = "import a Google+ dump"
-    cmd_options = ImportMixin.cmd_options
-
+    cmd_options = ImportMixin.cmd_options + [
+        {
+            "name": "show_statuses",
+            "long": "statuses",
+            "short": "s",
+            "default": False,
+            "type": bool,
+            "help": "Show all post statuses to support you with configuration",
+        }
+    ]
     def _execute(self, options, args):
         '''
             Import Google+ dump
@@ -83,78 +47,72 @@ class CommandImportGplus(Command, ImportMixin):
         if not args:
             print(self.help())
             return
-
+        
         options["foldername"] = args[0]
-        self.export_folder = options["foldername"]
+        self.export_folder = os.path.join(options["foldername"], "Takeout")
         self.output_folder = options["output_folder"]
         self.import_into_existing_site = False
         self.url_map = {}
 
-        # path to HTML formatted post files
+        with open(os.path.join("plugins",
+                                "import_gplus_html",
+                                "config.yaml")) as f:
+            self.config = yaml.load(f)
+
+        # path to post files
         post_path = os.path.join(self.export_folder,
-                                 gto_root,
-                                 gto_stream,
-                                 gto_posts)
+                                 self.config["gto"]["stream"],
+                                 self.config["gto"]["posts"],
+                                )
         
         # collect all files
         files = [f for f in os.listdir(os.path.join(post_path)) if os.path.isfile(os.path.join(post_path, f))]
 
-        # filter HTML files
-        html_files = [f for f in files if f.endswith(".html")]
-        LOGGER.info("{} posts ready for import".format(len(html_files)))
+        src_files = [f for f in files if f.endswith(".html")]
+        if len(src_files) == 0:
+            LOGGER.warn("""No HTML files found. Possible reasons:
+    1) you pointed to the wrong folder
+    2) you selected the wrong file format
+    3) there may be (spelling) errors in the configuration file""")
+            sys.exit(1)
+        else:
+            LOGGER.info("{} HTML formatted posts ready for import".format(len(src_files)))
         
-        # init new Nikola site "new_site", edit conf.py to your needs
-        # change into this folder for the for build process
-        self.context = self.populate_context(html_files, post_path)
+        if options["show_statuses"]:
+            self.analyze_share(post_path, src_files)
+            sys.exit(0)
+        
+        # init new site and copy media files to output folder
         conf_template = self.generate_base_site()
+        self.prepare_media(self.export_folder)
+        
+        self.context = self.populate_context(src_files,
+                                             post_path,
+                                             self.config,
+                                             )
         self.write_configuration(self.get_configuration_output_path(), conf_template.render(**prepare_config(self.context)))
-        self.import_posts(html_files, post_path)
-        
-        # In the Takeout archive photos are linked to the main working
-        # directory although they do not necessarily exist there (Hello
-        # deadlinks!). The image files are spread to several folders.
+        self.import_posts(src_files,
+                          post_path,
+                          self.config,
+                          )
 
-        # All archive photos will be copied to the "images" folder.
-        try:
-            os.makedirs(os.path.join(self.output_folder, "images"))
-            LOGGER.debug("Image folder created.")
-        except:
-            pass
-
-        for root, dirs, files in os.walk(os.path.join(self.export_folder, gto_root)):
-            for f in files:
-                if (f.lower().endswith(".jpg") or \
-                        f.lower().endswith(".jpeg") or \
-                        f.lower().endswith(".png") or \
-                        f.lower().endswith(".m4v") or \
-                        f.lower().endswith(".mp4") or \
-                        f.lower().endswith(".gif")): # 'Year in photos' 
-                    if not os.path.isfile(os.path.join(self.output_folder, "images",f)):
-                        if "=" in f:
-                            new_f = f.replace("=", "--")
-                            shutil.move(os.path.join(root, f), os.path.join(self.output_folder, "images", new_f))
-                        else:
-                            shutil.copy2(os.path.join(root, f), os.path.join(self.output_folder, "images"))
-                        LOGGER.debug("{} copied to Nikola image folder.".format(f))
-                    else:
-                        LOGGER.info("Skipping {}. File already exists".format(f))
-        
     @staticmethod
-    def populate_context(names, path):
-        # We don't get much data here
+    def populate_context(names, path, config):
+        # get info from configuration file
         context = SAMPLE_CONF.copy()
-        context["DEFAULT_LANG"] = "de"
-        context["BLOG_DESCRIPTION"] = ""
-        context["SITE_URL"] = "http://localhost:8000/"
-        context["BLOG_EMAIL"] = ""
-        context["BLOG_TITLE"] = "Static G+ stream archive"
+        context["DEFAULT_LANG"] = config["site"]["lang"]
+        context["BLOG_DESCRIPTION"] = config["site"]["descr"]
+        context["SITE_URL"] = config["site"]["url"]
+        context["BLOG_EMAIL"] = config["site"]["email"]
+        context["BLOG_TITLE"] = config["site"]["title"]
 
         # Get any random post, all have the same data
         with open(os.path.join(path, names[0])) as f:
             soup = bs4.BeautifulSoup(f, "html.parser")
         
         context["BLOG_AUTHOR"] = soup.find("a", "author").text
-
+        profile_url = soup.find("a").get("href")
+            
         context["POSTS"] = '''(
             ("posts/*.html", "posts", "post.tmpl"),
             ("posts/*.rst", "posts", "post.tmpl"),
@@ -166,7 +124,6 @@ class CommandImportGplus(Command, ImportMixin):
         }
         '''
         
-        profile_url = soup.find("a").get("href")
         context["NAVIGATION_LINKS"] = '''{{
     DEFAULT_LANG: (
         ("{}", "G+ profile"),
@@ -180,7 +137,113 @@ class CommandImportGplus(Command, ImportMixin):
         
         return context
 
-    def import_posts(self, names, path):
+    def analyze_share(self, path, names):
+        status_general = []
+        status_detail = []
+        for name in names:
+            with open(os.path.join(path, name)) as f:
+                soup = bs4.BeautifulSoup(f, "html.parser")
+
+            visibility = soup.find("div", "visibility")
+            vis_link = soup.find("div", "visibility").find("a")
+            status_general.append(visibility.contents[0].split(",")[0].rstrip())
+            if vis_link: status_detail.append(vis_link)
+            
+        #status_detail = Counter(status_detail)
+
+        status_com = []
+        status_circle = []
+        status_coll = []
+        status_event = []
+        for s in status_detail:
+            try:
+                title = s.contents[0]
+                if "communities" in s.get("href"):
+                    status_com.append(title)
+                elif "collection" in s.get("href"):
+                    status_coll.append(title)
+                elif "circle" in s.get("href"):
+                    status_circle.append(title)
+                elif  "event" in s.get("href"):
+                    status_event.append(title)
+            except IndexError:
+                if "communities" in s.get("href"):
+                    status_com.append("Deleted community")
+                elif "collection" in s.get("href"):
+                    status_coll.append("Deleted collection")
+                elif "circle" in s.get("href"):
+                    status_circle.append("Deleted circle")
+                elif "event" in s.get("href"):
+                    status_event.append("Deleted event")
+    
+        status_general = Counter(status_general)
+        status_com = Counter(status_com)
+        status_circle = Counter(status_circle)
+        status_coll = Counter(status_coll)
+        status_event = Counter(status_event)
+    
+        text_gen = """
+************************************************
+*                                              *
+* Share information of your G+ Takeout archive *
+*                                              *
+************************************************
+
+=======
+General
+=======
+
+(edit the "shared" section of your config.yaml)
+"""
+
+        text_com = """
+===========
+Communities
+===========
+
+(edit the "import" section of your config.yaml:
+    > set "com" to True to include communities
+    > exclude communities by listing them in "com_filter")
+"""
+
+        text_crcl = """
+=======
+Circles
+=======
+
+(edit the "import" section of your config.yaml:
+    > set "private" to True to include all posts
+    > exclude posts to specific circles by listing them in "circle_filter")
+"""
+
+        text_coll = """
+===========
+Collections
+===========
+
+(collections are considered public so this is FYI only)
+"""
+
+        text_ev = """
+======
+Events
+======
+
+(edit the "import" section of your config.yaml:
+    > set "events" to True to include all shares to events)
+"""
+        
+        for txt, lst in [(text_gen, status_general.most_common()),
+                          (text_com, status_com.most_common()),
+                          (text_crcl, status_circle.most_common()),
+                          (text_ev, status_event.most_common()),
+                          (text_coll, status_coll.most_common()),
+                         ]:
+            print(txt)
+            for i in lst:
+                print("{} ({})".format(i[0], i[1]))
+    
+    def import_posts(self, names, path, config):
         """Import all posts."""
         self.out_folder = "posts"
 
@@ -195,7 +258,6 @@ class CommandImportGplus(Command, ImportMixin):
             
             # post date is the 2nd link on the page
             post_date = soup.find_all("a")[1].text
-            
             # receive link from post date
             post_link = soup.find_all("a")[1].get("href")
             
@@ -211,35 +273,65 @@ class CommandImportGplus(Command, ImportMixin):
             comments = soup.find("div", "comments")
             
             # turn visibility status into category
-            # get name of 2nd item of visibility list which is link to com/coll
+            # get name of 1st item of visibility list which is link to com/coll
+            # links to deleted profiles still exist without link text
             if vis_link:
                 try:
-                    vis_link = vis_link.contents[0]
+                    vis_text = vis_link.contents[0]
                 except IndexError:
                     if "communities" in vis_link.get("href"):
-                        vis_link = "Deleted community"
+                        vis_text = "Deleted community"
                     elif "collection" in vis_link.get("href"):
-                        vis_link = "Deleted collection"  
+                        vis_text = "Deleted collection"
+                    elif "event" in vis_link.get("href"):
+                        vis_text = "Deleted event"
                     else:
-                        vis_link = "Deleted profile"
-            
-            vis = visibility.contents[0]
-            if (vis.startswith(share_public) or \
-                    vis.startswith(share_circles) or \
-                    vis.startswith(share_extcircles)):
+                        vis_text = "Deleted profile"
+                    # original post 404
+                    post_link = ""
+
+            # get title of com/coll/circle/event
+            vis = visibility.contents[0].rstrip()
+
+            if (vis.startswith(config["shared"]["public"]) or \
+                    vis.startswith(config["shared"]["circles"]) or \
+                    vis.startswith(config["shared"]["extcircles"])):
+                # common share status for general posts
                 cat = vis.split(",")[0] # get rid of comma if there is any
-            elif vis in share_com:
-                if import_com is False:
-                    LOGGER.warning("Community post will be ignored: {}".format(link))
+            elif vis in config["shared"]["com"]:
+                # check if communities are ignored
+                if not config["import"]["com"]:
+                    LOGGER.warning("Community post will be ignored: {}".format(post_link))
                     continue
-                cat = "{}\"{}\"".format(vis, vis_link)
-            elif vis in share_coll:
-                cat = "{}\"{}\"".format(vis, vis_link)
+                # else check if community is in filter list
+                elif vis_text in config["import"]["com_filter"]:
+                    LOGGER.warning("Community post to \"{}\" will be ignored: {}".format(vis_text, post_link))
+                    continue
+                cat = "{} \"{}\"".format(vis, vis_text)
+            elif vis in config["shared"]["coll"]:
+                # collections are considered to be public
+                cat = "{} \"{}\"".format(vis, vis_text)
+            elif vis in config["shared"]["event"]:
+                if not config["import"]["event"]:
+                    LOGGER.warning("Post to event will be ignored: {}".format(post_link))
+                    continue
+                cat = "{} \"{}\"".format(vis, vis_text)
+            elif vis_link:
+                # check if post is shared with circle
+                if "circles" in vis_link.get("href"):
+                    if not config["import"]["private"]:
+                        LOGGER.warning("Private post will be ignored: {}".format(post_link))
+                        continue
+                    elif vis_text in config["import"]["circle_filter"]:
+                        LOGGER.warning("Post to circle \"{}\" will be ignored: {}".format(vis_text, post_link))
+                        continue
+                    cat = "Shared to circle \"{}\"".format(vis_text)
             else:
-                if import_private is False:
-                    LOGGER.warning("Private post will be ignored: {}".format(link))
+                # everything else is considered private/other
+                if not config["import"]["private"]:
+                    LOGGER.warning("Private post will be ignored: {}".format(post_link))
                     continue
-                cat = share_other
+                cat = config["shared"]["other"]
             
             if video is not None:
                 tags.append("video")
@@ -293,7 +385,7 @@ class CommandImportGplus(Command, ImportMixin):
                          comments]:
                 if part is not None:
                     content = "{}\n{}\n".format(content, part)
-           
+
             slug = utils.slugify("{}_{}".format(post_date.split()[0], title), lang="de")
             
             if not slug:  # should never happen
@@ -322,7 +414,7 @@ class CommandImportGplus(Command, ImportMixin):
                 os.path.join(self.output_folder, self.out_folder, slug + ".html"),
                 content)
             
-            LOGGER.info("Imported post with status: {}".format(cat))
+            LOGGER.info("Imported post with status: {}.".format(cat))
 
     def write_metadata(self, filename, title, slug, post_date, description, tags, more):
         super(CommandImportGplus, self).write_metadata(
@@ -367,3 +459,33 @@ class CommandImportGplus(Command, ImportMixin):
             t = t.replace(tag[0], tag[1])
         
         return t
+
+    def prepare_media(self, folder):
+        # In the Takeout archive photos are linked to the main working
+        # directory although they do not necessarily exist there (Hello
+        # deadlinks!). The image files are spread to several folders.
+
+        # All archive photos will be copied to the "images" folder.
+        try:
+            os.makedirs(os.path.join(self.output_folder, "images"))
+            LOGGER.debug("Image folder created.")
+        except:
+            pass
+
+        for root, dirs, files in os.walk(folder):
+            for f in files:
+                if (f.lower().endswith(".jpg") or \
+                        f.lower().endswith(".jpeg") or \
+                        f.lower().endswith(".png") or \
+                        f.lower().endswith(".m4v") or \
+                        f.lower().endswith(".mp4") or \
+                        f.lower().endswith(".gif")): # 'Year in photos' 
+                    if not os.path.isfile(os.path.join(self.output_folder, "images",f)):
+                        if "=" in f:
+                            new_f = f.replace("=", "--")
+                            shutil.move(os.path.join(root, f), os.path.join(self.output_folder, "images", new_f))
+                        else:
+                            shutil.copy2(os.path.join(root, f), os.path.join(self.output_folder, "images"))
+                        LOGGER.debug("{} copied to Nikola image folder.".format(f))
+                    else:
+                        LOGGER.info("Skipping {}. File already exists.".format(f))
