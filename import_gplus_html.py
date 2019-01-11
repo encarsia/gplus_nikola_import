@@ -320,7 +320,8 @@ Events
                     LOGGER.warning("Community post will be ignored: {}".format(post_link))
                     continue
                 # else check if community is in filter list
-                elif vis_text in config["import"]["com_filter"]:
+                # empty config["import"]["com_filter"] list is NoneType 
+                elif config["import"]["com_filter"] and vis_text in config["import"]["com_filter"]:
                     LOGGER.warning("Community post to \"{}\" will be ignored: {}".format(vis_text, post_link))
                     continue
                 cat = "{} \"{}\"".format(vis, vis_text)
@@ -338,7 +339,7 @@ Events
                     if not config["import"]["private"]:
                         LOGGER.warning("Private post will be ignored: {}".format(post_link))
                         continue
-                    elif vis_text in config["import"]["circle_filter"]:
+                    elif config["import"]["circle_filter"] and vis_text in config["import"]["circle_filter"]:
                         LOGGER.warning("Post to circle \"{}\" will be ignored: {}".format(vis_text, post_link))
                         continue
                     cat = "Shared to circle \"{}\"".format(vis_text)

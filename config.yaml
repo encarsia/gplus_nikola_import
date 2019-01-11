@@ -26,13 +26,20 @@ site:
     title: Static G+ stream archive
 
 shared:
+    # shared public
     public: "Geteilt mit: Öffentlich"
+    # shared to "my circles"
     circles: "Geteilt mit: Meine Kreise"
+    # shared to "my extended circles"
     extcircles: "Geteilt mit: Meine erweiterten Kreise"
+    # shared to community
     com: "Shared to the community"
+    # shared to collection
     coll: "Shared to the collection"
+    # shared to event
     event: "Shared to the event"
-    # none of the above
+    # none of the above, this will not affect the import
+    # name of category with "other" posts
     other: "Andere"
 
 import:
@@ -41,13 +48,13 @@ import:
     # so these are probably private posts
     # (considered as "Andere"/"Other")
     private: True
-    # exclude circles from import
+    # exclude circles from import (may be empty)
     circle_filter:
         - circle1
         - circle2
     # include posts to communities (may be closed/private)
     com: True
-    # exclude communities from import
+    # exclude communities from import (may be empty)
     com_filter:
         - com1
         - com2
