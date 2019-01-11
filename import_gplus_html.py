@@ -101,10 +101,10 @@ class CommandImportGplus(Command, ImportMixin):
         # get info from configuration file
         context = SAMPLE_CONF.copy()
         context["DEFAULT_LANG"] = config["site"]["lang"]
-        context["BLOG_DESCRIPTION"] = config["site"]["descr"]
-        context["SITE_URL"] = config["site"]["url"]
-        context["BLOG_EMAIL"] = config["site"]["email"]
         context["BLOG_TITLE"] = config["site"]["title"]
+        context["SITE_URL"] = config["site"]["url"]
+        context["BLOG_DESCRIPTION"] = config["site"]["descr"] if config["site"]["descr"] else ""
+        context["BLOG_EMAIL"] = config["site"]["email"] if config["site"]["email"] else ""
 
         # Get any random post, all have the same data
         with open(os.path.join(path, names[0])) as f:
@@ -149,8 +149,6 @@ class CommandImportGplus(Command, ImportMixin):
             status_general.append(visibility.contents[0].split(",")[0].rstrip())
             if vis_link: status_detail.append(vis_link)
             
-        #status_detail = Counter(status_detail)
-
         status_com = []
         status_circle = []
         status_coll = []
