@@ -272,6 +272,22 @@ Events
             activity = soup.find("div", "post-activity")
             comments = soup.find("div", "comments")
             
+            # show plusses and comments as h3 headline if there are any
+            try:
+                plusses = len(activity.find_all("a"))
+                plus_header = "<h3>{} «+1»</h3>".format(plusses)
+                activity = str(activity).replace("+1'd by: ", "")
+            except AttributeError:
+                plus_header = None
+            try:
+                comment_count = len(comments.find_all("div", "comment"))
+                if comment_count == 1:
+                    comment_header = "<h3>One comment:</h3>"
+                else:
+                    comment_header = "<h3>{} comments</h3>".format(comment_count)
+            except AttributeError:
+                comment_header = None
+            
             # turn visibility status into category
             # get name of 1st item of visibility list which is link to com/coll
             # links to deleted profiles still exist without link text
@@ -381,7 +397,9 @@ Events
                          album,
                          media_link,
                          visibility,
+                         plus_header,
                          activity,
+                         comment_header,
                          comments]:
                 if part is not None:
                     content = "{}\n{}\n".format(content, part)

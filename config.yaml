@@ -13,7 +13,9 @@
 # └── index.html
 
 gto:
+    # "G+ stream" folder
     stream: Stream in Google+
+    # "Posts" folder
     posts: Beiträge
 
 site:

@@ -21,14 +21,15 @@ Enjoy.
     * Chances are that there isn't a ``plugins`` folder yet. Create it.
     * The plugin will create a new site in a subfolder so there won't be any contaminations with actual data.
     * If you are unsure or don't want that you can easily initiate an empty site for the purpose: ``$ nikola init dummy_site``.
- * Open ``plugins/gplus_nikola_plugin/import_gplus_html.py``.
-    * Adapt folder names to your language settings.
-    * Adapt share status strings if neccesary (this will affect the category assigment).
-    * Posts that are not shared to public/"My circles"/"My extended circles"/communities/collections will be classified as other/private; if you set the ``import_private`` variable to *False* these posts will not be imported.
-    * Community shares are not distinguished between public and closed/private communities; if you set the ``import_com`` variable to *False* community posts will not be imported.
+ * Open ``plugins/gplus_nikola_plugin/config.yaml``.  You may run the plugin with the option ``-s`` to help you with editing (this will not import anything).
+    * Adapt folder names of the ``gto`` section to your language settings.
+    * Adapt share status strings in the ``shared`` section if neccesary (this will affect the category assigment).
+    * Some content filter options are available in the ``import`` section:
+      * Posts that are not shared to public/"My circles"/"My extended circles"/communities/collections will be classified as other/private; if you set the ``private`` variable to *False* these posts will not be imported. If set to *True* you can exclude posts to the circles you list in ``circle_filter``.
+      * Community shares are not distinguished between public and closed/private communities; if you set the ``com`` variable to *False* community posts will not be imported. If set to *True* you can still exclude communities you list in ``com_filter``.
  * Run ``$ nikola import_gplus_html path/to/takeout_folder``.
- * The plugin inits a new Nikola site called ``new_site`` (no shit, Sherlock), you have to change into that directory to run build commands: ``$ cd new_site``.
- * Building the site can take long and possibly wake up your fans. You may want to test the output with a fraction of the available data.
+ * The plugin inits a new Nikola site called ``new_site`` (you can create a custom output name by using the option ``-o out_folder``), you have to change into that directory to run build commands: ``$ cd new_site``.
+ * Building the site can take some time depending. You may want to test the output with a fraction of the available data.
  * Although the output should work with any theme, it looks quite nice with [hyde](https://themes.getnikola.com/v7/hyde/); hpstr is okay, too.
    Install hyde: ``$ nikola theme -i hyde``.
  * Consider to copy the included ``custom.css`` into the ``themes/THEME_NAME/assets/css`` directory for an even better result.

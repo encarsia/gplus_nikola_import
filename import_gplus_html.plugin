@@ -7,6 +7,6 @@ PluginCategory = Command
 
 [Documentation]
 Author = Anke K
-Version = 0.1
-Website = http.://encarsia.github.io/import_gplus_nikola
+Version = 0.2
+Website = https://github.com/encarsia/gplus_nikola_import
 Description = Import Google+ posts from Google Takeout
