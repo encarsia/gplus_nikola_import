@@ -24,6 +24,8 @@ site:
     url: http://localhost:8000/
     email:
     title: Static G+ stream archive
+    # main website/blog
+    main_url:
 
 shared:
     # shared public
@@ -60,4 +62,8 @@ import:
         - com2
     # include posts to events (may be not public)
     event: True
+
+image:
+    watermark: False
+    watermark_text: Don't copy that floppy!
 

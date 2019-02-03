@@ -3,10 +3,13 @@
 from __future__ import unicode_literals, print_function
 
 import os
+import shlex
 import shutil
+import subprocess
 import sys
 import yaml
 from collections import Counter
+from PIL import Image
 
 try:
     import bs4
@@ -40,9 +43,9 @@ class CommandImportGplus(Command, ImportMixin):
         }
     ]
     def _execute(self, options, args):
-        '''
+        """
             Import Google+ dump
-        '''
+        """
 
         if not args:
             print(self.help())
@@ -70,7 +73,7 @@ class CommandImportGplus(Command, ImportMixin):
 
         src_files = [f for f in files if f.endswith(".html")]
         if len(src_files) == 0:
-            LOGGER.warn("""No HTML files found. Possible reasons:
+            LOGGER.warning("""No HTML files found. Possible reasons:
     1) you pointed to the wrong folder
     2) you selected the wrong file format
     3) there may be (spelling) errors in the configuration file""")
@@ -82,15 +85,28 @@ class CommandImportGplus(Command, ImportMixin):
             self.analyze_share(post_path, src_files)
             sys.exit(0)
         
-        # init new site and copy media files to output folder
+        # init new site
         conf_template = self.generate_base_site()
+        # image handling, preparations for build process
+        # copy all images to the Nikola 'images' folder
         self.prepare_media(self.export_folder)
+        # mark images with a horizontal text line
+        if self.config["image"]["watermark"]:
+            if self.config["image"]["watermark_text"] == None or \
+                        self.config["image"]["watermark_text"] == "":
+                LOGGER.warning("The watermark text must not be empty.")
+            else:
+                self.watermark_media(self.output_folder,
+                                     self.config["image"]["watermark_text"],
+                                    )
         
         self.context = self.populate_context(src_files,
                                              post_path,
                                              self.config,
                                              )
-        self.write_configuration(self.get_configuration_output_path(), conf_template.render(**prepare_config(self.context)))
+        self.write_configuration(self.get_configuration_output_path(),
+                                 conf_template.render(**prepare_config(self.context))
+                                )
         self.import_posts(src_files,
                           post_path,
                           self.config,
@@ -113,24 +129,31 @@ class CommandImportGplus(Command, ImportMixin):
         context["BLOG_AUTHOR"] = soup.find("a", "author").text
         profile_url = soup.find("a").get("href")
             
-        context["POSTS"] = '''(
+        context["POSTS"] = """(
             ("posts/*.html", "posts", "post.tmpl"),
             ("posts/*.rst", "posts", "post.tmpl"),
-        )'''
+        )"""
         
-        context["COMPILERS"] = '''{
-        "rest": ('.txt', '.rst'),
-        "html": ('.html', '.htm')
-        }
-        '''
+        context["COMPILERS"] = """{
+        "rest": (".txt", ".rst"),
+        "html": (".html", ".htm")
+        }"""
         
-        context["NAVIGATION_LINKS"] = '''{{
+        if config["site"]["main_url"]:
+            context["NAVIGATION_LINKS"] = """{{
     DEFAULT_LANG: (
-        ("{}", "G+ profile"),
+        ("{}", "Back"),
         ("/archive.html", "Archives"),
         ("/categories/index.html", "Share status"),
     ),
-}}'''.format(profile_url)
+}}""".format(config["site"]["main_url"])
+        else:
+            context["NAVIGATION_LINKS"] = """{
+    DEFAULT_LANG: (
+        ("/archive.html", "Archives"),
+        ("/categories/index.html", "Share status"),
+    ),
+}"""
         
         # Disable comments
         context["COMMENT_SYSTEM"] = ""
@@ -412,7 +435,7 @@ Events
             # additional metadata
             # the passed metadata objects are limited by the basic_import's
             # write_metadata fuction
-            more = {"link": post_link, # original G+ post
+            more = {#"link": post_link, # original G+ post, thx shutdown
                     "hidetitle": True, # doesn't work for index pages
                     "category": cat,
                     }
@@ -424,7 +447,7 @@ Events
                                 slug,
                                 post_date,
                                 "", # description always empty
-                                tags,
+                                list(set(tags)),
                                 more)
                                 
             self.write_content(
@@ -503,6 +526,35 @@ Events
                             shutil.move(os.path.join(root, f), os.path.join(self.output_folder, "images", new_f))
                         else:
                             shutil.copy2(os.path.join(root, f), os.path.join(self.output_folder, "images"))
-                        LOGGER.debug("{} copied to Nikola image folder.".format(f))
+                        LOGGER.debug("{} copied to image folder.".format(f))
                     else:
                         LOGGER.info("Skipping {}. File already exists.".format(f))
+
+    def watermark_media(self, folder, text):
+        src_img_dir = os.path.join(folder, "images")
+        # save watermarked images in separate folder so you can build the
+        # site again with or without watermarked images without running
+        # the import plugin multiple times
+        try:
+            os.makedirs(os.path.join(folder, "images_wm"))
+            LOGGER.debug("Image folder created.")
+        except:
+            pass
+        wm_img_dir = (os.path.join(folder, "images_wm"))
+        command = "convert -background \"#0008\" -fill LightGray -gravity center -size {}x{} -pointsize {} -family \"DejaVu Sans\" label:\"{}\" {} +swap -gravity center -composite {}"
+        for image in sorted(os.listdir(src_img_dir)):
+            if not image.split(".")[1] in ("gif", "mp4", "m4v"):
+                if not os.path.isfile(os.path.join(wm_img_dir, image)):
+                    w, h = Image.open(os.path.join(src_img_dir, image)).size
+                    args = shlex.split(command.format(w,
+                                                      h / 8, # height of vertical banner
+                                                      h/ 20, #fontsize
+                                                      text,
+                                                      os.path.join(src_img_dir, image.replace(" ", "\ ")),
+                                                      os.path.join(wm_img_dir, image.replace(" ", "\ ")),
+                                                      ),
+                                        )
+                    subprocess.run(args)
+                    LOGGER.debug("Created watermarked image of {}.".format(image))
+                else:
+                    LOGGER.info("Skipping {}. Watermarked image already exists.".format(image))
