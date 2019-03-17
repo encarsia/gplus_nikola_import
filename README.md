@@ -48,6 +48,12 @@ Enjoy.
             * thumbnail: ``IMAGE_THUMBNAIL_SIZE = 200`` (default 400)
    * set theme: ``THEME = "hyde"``
    * disable RSS: ``GENERATE_RSS = False``
+   * set link(s) to your main presence or profiles: ``NAVIGATION_LINKS``
+   * do not deliver sources:
+      * ``SHOW_SOURCELINK = False``
+      * ``COPY_SOURCES = False``
+   * number of posts per index page: ``INDEX_DISPLAY_POST_COUNT = 20`` (default 10)
+   * disable generation of a robots.txt: ``DISABLED_PLUGINS = ["robots"]``
  * Build the site: ``$ nikola build``.
  * Watch the site on localhost:8000: ``$ nikola serve``.
 
