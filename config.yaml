@@ -60,7 +60,7 @@ import:
     com_filter:
         - com1
         - com2
-    # include posts to events (may be not public)
+    # include posts to events (may not be public)
     event: True
 
 image:
